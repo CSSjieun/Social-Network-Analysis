@@ -1,0 +1,57 @@
+---
+title: "machine_learning_link_prediction"
+author: "Jieun Park"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+set.seed(2345)
+
+# 5-fold cross validation 
+# library(caret)
+control <- trainControl(method = "cv",  # Use k-fold cross-validation
+                        number = 5)
+
+# Logistic Regression
+logistic_regression = train(factor(obs) ~ sim_jacc+sim_aa+sim_pref,  
+                            data = total_edges_train,  
+                            method = "glmnet",  
+                            tuneGrid = expand.grid(alpha = 0, lambda = seq(0.01, 1, by = 0.01)),
+                            family = "binomial")
+
+summary(logistic_regression)
+logistic_regression_accuracy <- mean(logistic_regression$results$Accuracy)
+
+# Decision Tree
+decision_tree = train(factor(obs) ~ sim_jacc+sim_aa+sim_pref, 
+                      data = total_edges_train, 
+                      method = "rpart", 
+                      trControl = control)
+
+decision_tree_accuracy <- mean(decision_tree$results$Accuracy)
+
+# KNN
+k_neighbors = train(factor(obs) ~ sim_jacc+sim_aa+sim_pref, 
+                    data = total_edges_train, 
+                    method = "knn", 
+                    trControl = control)
+
+k_neighbors_accuracy <- mean(k_neighbors$results$Accuracy)
+
+# SVM
+svm = train(factor(obs) ~ sim_jacc+sim_aa+sim_pref, 
+            data = total_edges_train,
+            method = "svmLinear", 
+            trControl = control)
+svm_accuracy <- svm$results$Accuracy
+
+all_accuracies <- data.frame(rbind(logistic_regression_accuracy, decision_tree_accuracy, 
+                                    k_neighbors_accuracy, svm_accuracy)) |> 
+                         rename(accuracy = 
+                        "rbind.logistic_regression_accuracy..decision_tree_accuracy..k_neighbors_accuracy..") |>
+                         mutate(rank = rank(desc(accuracy)))
+
+all_accuracies |> arrange(rank)
+```
+

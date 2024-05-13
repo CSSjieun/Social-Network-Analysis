@@ -8,7 +8,8 @@ output: html_document
 # Library
 
 ```{r}
-
+library(igraph)
+library(dplyr)
 ```
 
 # Basic Igraph Package
@@ -16,6 +17,239 @@ output: html_document
 ## 1
 
 ```{r}
+g <- graph( c(1,2, 2,3, 3,4, 3,5))
+g
+class(g)
+is_igraph(g)
+```
+
+```{r}
+g <- graph( c(1,2, 2,3, 3,4, 3,5),directed=F) # undirected graph
+g
+```
+
+```{r}
+E(g) # edge table
+V(g) # node table
+```
+
+```{r}
+E(g)$weight <- c(0.2,0.3,0.2,0.5) #the `weight` attribute is a reserved one
+V(g)$name <- c("juan","lola","pepe","saul","ana") #the `name` attribute is a reserved one
+V(g)$color <- c("red","blue","blue","red","blue")
+
+g
+```
+Another way to make the graph data
+
+```{r}
+edges <- data.frame(from=c(1,1,2,2,3,5),to=c(2,3,3,4,2,4),peso=c(1,1,1,2,2,3))
+nodes <- data.frame(id=c(1,2,3,4,5),nombre=c("juan","clara","luis","raul","alex"))
+g <- graph.data.frame(edges,vertices=nodes)
+g
+```
+Read / Write Graph
+
+```{r}
+# 1. Read
+g <- read.graph(file, format = c("edgelist", "pajek", "ncol",
+"lgl","graphml", "dimacs", "graphdb", "gml", "dl"), ...)
+
+# 2. Write
+write.graph(g,format="Pajek",file="g.net")
+```
+
+
+## 2. enron data
+
+```{r}
+library(igraphdata)
+data(enron) #We load the enron emails graph
+enron
+```
+
+## 3. Starwars data
+
+```{r}
+net <- jsonlite::fromJSON(txt="data/starwars-full-interactions-allCharacters-merged.json")
+names(net)
+```
+```{r}
+nodes <- net$nodes
+links <- net$links
+
+head(nodes,2) # name, value, colour
+head(links,5) # source, target, value
+
+# Remember that the first column in the table nodes must contain the same ids that the firs two columns in links. This is why we add a new column to this file.
+# Same as the code below
+# nodes <- data.frame(id=seq(0,nrow(nodes)-1),nodes)
+nodes <- nodes %>%
+  mutate(id = row_number() - 1, .before = 'name') # id should be located at the most first order
+
 
 ```
+
+Generate the graph
+
+```{r}
+gSW <- graph_from_data_frame(links,vertices=nodes,directed=FALSE)
+gSW
+```
+
+### example of graph_from_data_frame and vice versa as_data_frame (igraph)
+
+```{r}
+
+## A simple example with a couple of actors
+## The typical case is that these tables are read in from files....
+actors <- data.frame(
+  name = c(
+    "Alice", "Bob", "Cecil", "David",
+    "Esmeralda"
+  ),
+  age = c(48, 33, 45, 34, 21),
+  gender = c("F", "M", "F", "M", "F")
+)
+relations <- data.frame(
+  from = c(
+    "Bob", "Cecil", "Cecil", "David",
+    "David", "Esmeralda"
+  ),
+  to = c("Alice", "Bob", "Alice", "Alice", "Bob", "Alice"),
+  same.dept = c(FALSE, FALSE, TRUE, FALSE, FALSE, TRUE),
+  friendship = c(4, 5, 5, 2, 1, 1), advice = c(4, 5, 5, 4, 2, 3)
+)
+g <- graph_from_data_frame(relations, directed = TRUE, vertices = actors)
+print(g, e = TRUE, v = TRUE)
+
+## The opposite operation
+as_data_frame(g, what = "vertices")
+as_data_frame(g, what = "edges")
+
+```
+
+Making a plot
+
+```{r}
+par(mar=c(0,0,0,0))
+plot(gSW)
+```
+```{r}
+head(V(gSW))
+```
+
+Vertex (edge) internal ids run from 1 to $|V|$ ($|E|$). Internal ids are used typically in functions. Original ids are stored in V(g)$name
+
+```{r}
+V(gSW)[1]
+which(V(gSW)=="DARTH VADER")
+which(V(gSW)$name=="DARTH VADER")
+```
+
+### Graph Operation: subsetting
+
+Nodes that are neighbors of a
+
+```{r}
+head(V(gSW)[.nei("DARTH VADER")])
+```
+
+Edges between groups of nodes (direction matters):
+
+Overall, the code snippet extracts the subset of edges from the graph gSW where the source nodes are "DARTH VADER" or "LUKE" and the target nodes are "R2-D2" or "C-3PO". It's essentially querying the graph for edges connecting these specific nodes.
+
+```{r}
+E(gSW)[c("DARTH VADER","LUKE") %->% c("R2-D2","C-3PO")]
+```
+
+### Igraph function for subsetting
+
+Incident nodes are the nodes directly connected to a specified node through edges.
+
+```{r}
+head(neighbors(gSW,"DARTH VADER")) #get the int. ids of a node’s neighbor
+head(incident(gSW,"DARTH VADER")) #get the incident edges to a node
+```
+
+### example of incident node
+
+```{r}
+g <- make_graph("Zachary")
+incident(g, 1)
+incident(g, 34)
+```
+
+### Graph operations: operations
+
+### example of subgraph
+
+```{r}
+g <- make_ring(10)
+g2 <- induced_subgraph(g, 1:7)
+g3 <- subgraph.edges(g, 1:5)
+
+g
+g2
+g3
+```
+
+
+We can modify the graph
+
+Adding/deleting vertices/edges
+
+```{r}
+# Adding
+gSW <- gSW + vertex("ANAKIN",color="blue")
+gSW <- gSW + edge("DARTH VADER","ANAKIN")
+
+# Deleting
+gSW <- delete_vertices(gSW,"ANAKIN")
+```
+
+Simplify the graph: remove loops and multiple edges
+
+```{r}
+gSW <- simplify(gSW,remove.multiple = T,remove.loops = T)
+```
+
+Subgraphs: only specified vertices and edges between them are kept
+
+<Parameter>
+- vids : Numeric vector, the vertices of the original graph which will form the subgraph.
+
+```{r}
+gSW_subg <- induced_subgraph(gSW,vids = c("DARTH VADER","LUKE","PADME","LEIA"))
+plot(gSW_subg)
+```
+We can also get only the neighborhood of a given node
+
+<Parameter>
+- order: Integer giving the order of the neighborhood.
+The order of the ego network. An ego network of order 0 contains only the ego (the central node) itself. An ego network of order 1 contains the ego and all nodes directly connected to it. An ego network of order 2 contains the ego, all nodes directly connected to it, and all nodes that are one edge away from the ego, and so on.
+
+
+
+```{r}
+egoDW <- make_ego_graph(gSW,order = 1,"DARTH VADER")[[1]]
+plot(egoDW)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
